@@ -1,3 +1,9 @@
 # Meshy 원본 3D 모델. 파일당 113MB로 GitHub의 100MB 제한을 넘는다.
 # 레포에는 assets/ 의 PNG 렌더만 들어간다.
 *.glb
+
+# 에디터·에이전트 설정
+/.claude
+
+# 작업 지시용 임시 메모. 사양서가 아니다.
+neuralviz-spec.md
