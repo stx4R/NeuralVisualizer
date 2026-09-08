@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>NeuralViz 시각화 확인용 데모</title>
+<style>
+  body { font: 14px system-ui, -apple-system, "Malgun Gothic", sans-serif; color: #202124; margin: 20px; background: #fff; }
+  h1 { font-size: 16px; margin: 0 0 4px; }
+  h2 { font-size: 13px; font-weight: 600; color: #5f6368; margin: 22px 0 8px; }
+  .row { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+  figure { margin: 0; }
+  figcaption { font-size: 12px; color: #5f6368; margin-bottom: 4px; }
+  canvas { border: 1px solid #dadce0; border-radius: 4px; display: block; }
+  p.note { font-size: 12px; color: #5f6368; margin: 4px 0 0; }
+</style>
+</head>
+<body>
+<h1>시각화 확인용 데모 (임시)</h1>
+<p class="note">엔진 1단계 위에 얹은 Canvas 2D 시각화. 정적 서버로 열어야 합니다 — <code>http://localhost:8123/tests/viz-demo.html</code></p>
+
+<h2>[2,4,4,1] tanh + xor 200개 · 2000 epoch · lr 0.5</h2>
+<div class="row">
+  <figure><figcaption>결정 경계 — 학습 전</figcaption><canvas id="b-before" width="280" height="280"></canvas></figure>
+  <figure><figcaption>결정 경계 — 학습 후</figcaption><canvas id="b-after" width="280" height="280"></canvas></figure>
+  <figure><figcaption>망 다이어그램 (학습 후)</figcaption><canvas id="net-441" width="420" height="280"></canvas></figure>
+</div>
+<div class="row" style="margin-top:18px">
+  <figure><figcaption>손실 곡선 (2000점 → 다운샘플링)</figcaption><canvas id="loss" width="420" height="160"></canvas></figure>
+  <figure><figcaption>손실 곡선 (앞 40 epoch만)</figcaption><canvas id="loss-short" width="420" height="160"></canvas></figure>
+</div>
+
+<h2>뉴런 반지름 자동 축소 — 캔버스 높이 280px 고정</h2>
+<div class="row">
+  <figure><figcaption>[2,8,8,1]</figcaption><canvas id="net-881" width="420" height="280"></canvas></figure>
+  <figure><figcaption>[2,16,16,1] (더 빽빽할 때)</figcaption><canvas id="net-16" width="420" height="280"></canvas></figure>
+  <figure><figcaption>[2,4,1] (여유로울 때 = 12px)</figcaption><canvas id="net-241" width="420" height="280"></canvas></figure>
+</div>
+
+<script type="module">
+import { Network } from '../src/network.js';
+import { generate } from '../src/data.js';
+import { drawBoundary } from '../src/viz-boundary.js';
+import { drawNetwork } from '../src/viz-network.js';
+import { drawLoss } from '../src/viz-loss.js';
+
+const $ = (id) => document.getElementById(id);
+const data = generate('xor', 200, 0.05, 7);
+const net = new Network([2, 4, 4, 1], 'tanh', { seed: 3 });
+
+// 학습 전 상태부터 그려 둔다
+drawBoundary($('b-before'), net, data);
+
+const history = [];
+for (let epoch = 0; epoch < 2000; epoch++) {
+  const cache = net.forward(data.X);
+  history.push(net.loss(cache.output, data.Y));
+  net.step(net.backward(cache, data.Y), 0.5);
+}
+
+drawBoundary($('b-after'), net, data);
+drawNetwork($('net-441'), net);
+drawLoss($('loss'), history);
+drawLoss($('loss-short'), history.slice(0, 40));
+
+// 반지름 자동 축소 확인용 — 학습은 하지 않고 초기 가중치만 본다
+drawNetwork($('net-881'), new Network([2, 8, 8, 1], 'tanh', { seed: 5 }));
+drawNetwork($('net-16'), new Network([2, 16, 16, 1], 'tanh', { seed: 5 }));
+drawNetwork($('net-241'), new Network([2, 4, 1], 'tanh', { seed: 5 }));
+
+console.log(`학습 후 손실 ${history[history.length - 1].toFixed(4)} → 최종 ${net.loss(net.predict(data.X), data.Y).toFixed(4)}`);
+console.log('그리기 완료: 결정경계 2, 망 4, 손실곡선 2');
+</script>
+</body>
+</html>

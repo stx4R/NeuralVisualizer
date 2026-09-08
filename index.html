@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NeuralViz</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="bar">
+  <div class="group">
+    <label class="field">
+      <span class="label">데이터셋</span>
+      <select id="dataset">
+        <option value="xor">XOR</option>
+        <option value="circle">원형</option>
+        <option value="spiral">나선</option>
+        <option value="gaussian">가우시안</option>
+      </select>
+    </label>
+
+    <label class="field">
+      <span class="label">노이즈 <b id="noise-value">0.05</b></span>
+      <input id="noise" type="range" min="0" max="0.5" step="0.05" value="0.05">
+    </label>
+
+    <label class="field">
+      <span class="label">활성화</span>
+      <select id="activation">
+        <option value="tanh">tanh</option>
+        <option value="relu">ReLU</option>
+        <option value="sigmoid">sigmoid</option>
+      </select>
+    </label>
+
+    <label class="field">
+      <span class="label">학습률 <b id="lr-value">0.50</b></span>
+      <input id="lr" type="range" min="0" max="1000" step="1" value="0">
+    </label>
+  </div>
+
+  <div class="group">
+    <div class="field">
+      <span class="label">은닉층 <b id="layer-summary">[4, 4]</b></span>
+      <div class="layers">
+        <button id="layer-remove" type="button" class="sq" title="층 제거">−</button>
+        <div id="layers"></div>
+        <button id="layer-add" type="button" class="sq" title="층 추가">+</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="group">
+    <div class="field">
+      <span class="label">학습</span>
+      <div class="buttons">
+        <button id="toggle" type="button" class="primary">재생</button>
+        <button id="step" type="button">1스텝</button>
+        <button id="reset" type="button">초기화</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <span class="label">개발자용</span>
+      <div class="buttons">
+        <button id="gradcheck" type="button">그래디언트 검증</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="group status">
+    <div class="stat"><span class="label">epoch</span><b id="stat-epoch">0</b></div>
+    <div class="stat"><span class="label">손실</span><b id="stat-loss">—</b></div>
+    <div class="stat"><span class="label">정확도</span><b id="stat-acc">—</b></div>
+  </div>
+</header>
+
+<p id="gc-result" class="gc" hidden></p>
+
+<main class="panels">
+  <section class="panel">
+    <div class="panel-head">
+      <div class="seg-group">
+        <button id="view-boundary" type="button" class="seg is-active">결정 경계</button>
+        <button id="view-surface" type="button" class="seg">손실 표면</button>
+      </div>
+    </div>
+
+    <canvas id="canvas-boundary" width="400" height="400"></canvas>
+    <canvas id="canvas-surface" width="400" height="400" hidden></canvas>
+
+    <div id="surface-controls" hidden>
+      <div class="surface-grid">
+        <label class="field">
+          <span class="label">파라미터 A (가로)</span>
+          <select id="param-a"></select>
+        </label>
+        <label class="field">
+          <span class="label">파라미터 B (세로)</span>
+          <select id="param-b"></select>
+        </label>
+        <label class="field">
+          <span class="label">격자 해상도</span>
+          <select id="steps">
+            <option value="20">20 × 20</option>
+            <option value="40" selected>40 × 40</option>
+            <option value="60">60 × 60</option>
+          </select>
+        </label>
+        <label class="field">
+          <span class="label">탐색 범위 <b id="span-value">2.0</b></span>
+          <input id="span" type="range" min="0.5" max="5" step="0.1" value="2">
+        </label>
+        <label class="field">
+          <span class="label">높이 배율 <b id="height-value">0.80</b></span>
+          <input id="height" type="range" min="0.2" max="1.5" step="0.05" value="0.8">
+        </label>
+        <div class="field">
+          <span class="label">보기</span>
+          <label class="check"><input id="wireframe" type="checkbox"> 와이어프레임</label>
+        </div>
+      </div>
+
+      <div class="surface-actions">
+        <button id="compute" type="button" class="primary">표면 계산</button>
+        <span id="compute-status" class="muted">드래그하면 회전합니다 (pitch 5°~85°)</span>
+      </div>
+
+      <p class="footnote">
+        이 표면은 <b>선택한 두 파라미터만 움직이고 나머지는 현재 값에 고정</b>한 2차원 단면입니다.
+        실제 학습에서는 나머지 파라미터도 함께 변하므로 표면 위에 그린 경로는 근사입니다.
+        학습이 끝난 뒤 계산한 표면에 궤적을 얹을 때 이 오차가 가장 작습니다.
+      </p>
+    </div>
+  </section>
+
+  <div class="column">
+    <section class="panel">
+      <h2>망 구조</h2>
+      <canvas id="canvas-network" width="400" height="280"></canvas>
+    </section>
+    <section class="panel">
+      <h2>손실 곡선</h2>
+      <canvas id="canvas-loss" width="400" height="160"></canvas>
+    </section>
+  </div>
+</main>
+
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

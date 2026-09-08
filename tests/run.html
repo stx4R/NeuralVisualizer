@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>NeuralViz 엔진 검증</title>
+</head>
+<body>
+<p>이 페이지는 콘솔에만 출력합니다. 개발자 도구(F12) → Console 탭을 여세요.</p>
+<p><small>ES 모듈을 쓰므로 <code>file://</code> 로 열면 차단됩니다. 프로젝트 루트에서 정적 서버를 띄운 뒤
+<code>http://localhost:PORT/tests/run.html</code> 로 여세요. 예: <code>npx serve .</code> 또는 <code>python -m http.server</code></small></p>
+
+<script type="module">
+import { Network } from '../src/network.js';
+import { generate } from '../src/data.js';
+import { checkGradients } from '../src/gradcheck.js';
+
+// ── 설정 ─────────────────────────────────────────────────────────────
+const TOL = 1e-7;        // 그래디언트 체킹 통과 기준
+const EPSILON = 1e-4;    // 중앙 차분 폭
+const COUNT = 200;       // 표본 수
+const NOISE = 0.05;      // 좌표 잡음 표준편차
+const DATA_SEED = 7;     // 데이터 시드 (재현용)
+const NET_SEED = 3;      // 가중치 초기화 시드 (재현용)
+const EPOCHS = 2000;
+const LR = 0.5;
+
+// ── 도우미 ───────────────────────────────────────────────────────────
+const e3 = (x) => x.toExponential(3);
+const pct = (x) => (x * 100).toFixed(1) + '%';
+const mark = (ok) => (ok ? '통과' : '실패');
+
+function accuracy(net, X, Y) {
+  const A = net.predict(X);
+  let ok = 0;
+  for (let j = 0; j < A[0].length; j++) if ((A[0][j] >= 0.5 ? 1 : 0) === Y[0][j]) ok++;
+  return ok / A[0].length;
+}
+
+/** 전체 배치 경사하강. 반환값은 마지막 갱신 직후의 손실. */
+function train(net, X, Y, epochs, lr, logEvery = 0) {
+  for (let epoch = 1; epoch <= epochs; epoch++) {
+    const cache = net.forward(X);
+    net.step(net.backward(cache, Y), lr);
+    if (logEvery && (epoch % logEvery === 0 || epoch === 1)) {
+      console.log(`      epoch ${String(epoch).padStart(4)} : loss ${net.loss(cache.output, Y).toFixed(4)}`);
+    }
+  }
+  return net.loss(net.predict(X), Y);
+}
+
+/**
+ * ReLU는 z=0에서 미분이 꺾인다. 어떤 표본의 z가 0에 너무 가까우면
+ * (J(θ+ε) − J(θ−ε)) / 2ε 가 꺾임을 가로질러 버려서 수치 미분 자체가 무의미해진다.
+ * 파라미터 하나를 ε 만큼 흔들었을 때 z가 움직이는 최대 폭(= 도달 반경)과
+ * 실제 min|z|(= 꺾임까지의 거리)를 비교해 검사 지점이 안전한지 판단한다.
+ */
+function kinkInfo(net, X, epsilon) {
+  const { A, Z } = net.forward(X);
+  let margin = Infinity;
+  for (let l = 0; l < Z.length - 1; l++) {          // 은닉층만 (출력층은 시그모이드라 꺾임 없음)
+    for (const row of Z[l]) for (const v of row) margin = Math.min(margin, Math.abs(v));
+  }
+  let maxA = 1;                                      // 편향 섭동의 반경은 ε 이므로 하한 1
+  for (let l = 0; l < A.length - 1; l++) {
+    for (const row of A[l]) for (const v of row) maxA = Math.max(maxA, Math.abs(v));
+  }
+  const reach = epsilon * maxA;
+  return { margin, reach, safe: margin > reach };
+}
+
+/** 꺾임에 걸리지 않는 초기화 시드를 찾는다. */
+function findKinkSafeSeed(layerSizes, act, X, epsilon, maxSeeds = 200) {
+  for (let seed = 1; seed <= maxSeeds; seed++) {
+    const net = new Network(layerSizes, act, { seed });
+    const info = kinkInfo(net, X, epsilon);
+    if (info.safe) return { seed, net, info };
+  }
+  return null;
+}
+
+// ── 검증 시작 ────────────────────────────────────────────────────────
+console.log('═══ NeuralViz 엔진 검증 ═══');
+console.log(`데이터: xor ${COUNT}개, noise=${NOISE}, seed=${DATA_SEED} / 학습: ${EPOCHS} epoch, lr=${LR}`);
+
+const { X, Y } = generate('xor', COUNT, NOISE, DATA_SEED);
+const results = [];
+
+// [1] tanh 그래디언트 체킹
+console.log('\n[1] 그래디언트 체킹 — [2,4,4,1] tanh + xor 200개');
+{
+  const net = new Network([2, 4, 4, 1], 'tanh', { seed: NET_SEED });
+  const r = checkGradients(net, X, Y, EPSILON);
+  console.log(`    파라미터 ${net.parameterCount}개, 상대오차 ${e3(r.relativeError)} (기준 < ${e3(TOL)})`);
+  console.log(`    가장 어긋난 성분 #${r.worstIndex}: 해석 ${e3(r.analytic[r.worstIndex])} vs 수치 ${e3(r.numeric[r.worstIndex])}`);
+  console.log(`    → ${mark(r.passed)}`);
+  results.push(['1. tanh 그래디언트 체킹', r.passed]);
+}
+
+// [2] relu / sigmoid 그래디언트 체킹
+console.log('\n[2] 그래디언트 체킹 — relu / sigmoid 은닉 활성화');
+for (const act of ['relu', 'sigmoid']) {
+  let net = new Network([2, 4, 4, 1], act, { seed: NET_SEED });
+  let seedUsed = NET_SEED;
+  const info = kinkInfo(net, X, EPSILON);
+
+  if (act === 'relu' && !info.safe) {
+    // 죽은 ReLU 유닛이 z=0에 정확히 얹히면 수치 미분이 성립하지 않는다.
+    // 해석적 기울기의 문제가 아니라 검사 지점의 문제이므로, 꺾임 없는 지점에서 검사한다.
+    console.log(`    relu: 시드 ${NET_SEED} 지점은 꺾임에 걸림 — min|z| ${e3(info.margin)} ≤ 섭동 반경 ${e3(info.reach)}`);
+    const found = findKinkSafeSeed([2, 4, 4, 1], act, X, EPSILON);
+    if (!found) {
+      console.log('    relu: 꺾임 없는 초기화를 찾지 못함 → 검사 불가');
+      results.push(['2. relu 그래디언트 체킹', false]);
+      continue;
+    }
+    net = found.net;
+    seedUsed = found.seed;
+    console.log(`    relu: 꺾임 없는 시드 ${seedUsed} 로 재검사 — min|z| ${e3(found.info.margin)} > 반경 ${e3(found.info.reach)}`);
+  }
+
+  const r = checkGradients(net, X, Y, EPSILON);
+  console.log(`    ${act.padEnd(7)} (seed ${seedUsed}) 상대오차 ${e3(r.relativeError)} → ${mark(r.passed)}`);
+  results.push([`2. ${act} 그래디언트 체킹`, r.passed]);
+}
+
+// [3] 은닉층 없는 [2,1] 은 xor 를 못 푼다
+console.log('\n[3] 은닉층 없는 [2,1] 망으로 xor 학습 — 손실이 0.69 근처에 머무는지');
+{
+  const net = new Network([2, 1], 'tanh', { seed: NET_SEED });
+  const before = net.loss(net.predict(X), Y);
+  const after = train(net, X, Y, EPOCHS, LR);
+  const acc = accuracy(net, X, Y);
+  // ln 2 ≈ 0.693 — 항상 0.5를 찍는 것과 다름없는 손실
+  const stuck = after > 0.6 && Math.abs(after - Math.LN2) < 0.1;
+  console.log(`    학습 전 ${before.toFixed(4)} → ${EPOCHS} epoch 후 ${after.toFixed(4)} (ln2 = ${Math.LN2.toFixed(4)}), 정확도 ${pct(acc)}`);
+  console.log(`    → 선형 결정경계로는 xor 를 못 가름. ${mark(stuck)}`);
+  results.push(['3. [2,1] 망은 xor 학습 실패', stuck]);
+}
+
+// [4] [2,4,4,1] 은 xor 를 푼다
+console.log(`\n[4] [2,4,4,1] tanh 망으로 xor 학습 — ${EPOCHS} epoch, lr=${LR}`);
+{
+  const net = new Network([2, 4, 4, 1], 'tanh', { seed: NET_SEED });
+  const t0 = performance.now();
+  const loss = train(net, X, Y, EPOCHS, LR, 500);
+  const ms = performance.now() - t0;
+  const acc = accuracy(net, X, Y);
+  const ok = loss < 0.1 && acc >= 0.95;
+  console.log(`    최종 손실 ${loss.toFixed(4)} (기준 < 0.1), 정확도 ${pct(acc)} (기준 ≥ 95%), ${ms.toFixed(0)}ms`);
+  console.log(`    → ${mark(ok)}`);
+  results.push(['4. [2,4,4,1] 망은 xor 학습 성공', ok]);
+}
+
+// ── 요약 ─────────────────────────────────────────────────────────────
+const passed = results.filter(([, ok]) => ok).length;
+console.log(`\n═══ 요약: ${passed}/${results.length} 통과 ═══`);
+for (const [name, ok] of results) console.log(`  ${ok ? '✔' : '✘'} ${name}`);
+if (passed !== results.length) console.error('실패한 검증이 있습니다.');
+</script>
+</body>
+</html>

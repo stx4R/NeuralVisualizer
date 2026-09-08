@@ -1,0 +1,227 @@
+/* NeuralViz — 다크 배경, 밝은 캔버스, 장식 최소.
+   파랑(#3a7ae8)·주황(#e8853a)은 데이터 클래스 전용이라 UI 요소에는 쓰지 않는다.
+   UI는 무채색으로만 강조하고, 검증 결과만 초록/빨강을 쓴다. */
+
+:root {
+  --bg: #1a1a1e;
+  --panel: #232329;
+  --line: #33333b;
+  --text: #e4e4e7;
+  --muted: #9a9aa2;
+  --control: #2a2a31;
+  --canvas: #f7f7f9;
+  --ok: #7bd88f;
+  --fail: #f07171;
+}
+
+* { box-sizing: border-box; }
+
+/* canvas { display: block } 같은 규칙이 hidden 속성을 덮지 않게 못 박는다 */
+[hidden] { display: none !important; }
+
+body {
+  margin: 0;
+  padding: 16px;
+  min-width: 1000px;
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.45 system-ui, -apple-system, "Malgun Gothic", sans-serif;
+}
+
+/* ── 컨트롤 바 ───────────────────────────────────────────── */
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px 28px;
+  padding: 12px 16px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.group { display: flex; gap: 20px; align-items: flex-start; }
+.group.status { margin-left: auto; gap: 22px; }
+
+.field { display: flex; flex-direction: column; gap: 5px; }
+
+.label {
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.label b { color: var(--text); font-variant-numeric: tabular-nums; font-weight: 600; }
+
+select, input[type="range"], button {
+  font: inherit;
+  color: var(--text);
+  background: var(--control);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+select { padding: 5px 8px; min-width: 104px; }
+
+input[type="range"] {
+  width: 132px;
+  padding: 0;
+  height: 22px;
+  background: none;
+  border: none;
+  accent-color: #c9c9d1; /* 무채색 — 데이터 색과 겹치지 않게 */
+}
+
+button {
+  padding: 5px 11px;
+  cursor: pointer;
+}
+button:hover:not(:disabled) { background: #34343d; }
+button:disabled { opacity: 0.38; cursor: default; }
+
+button.primary { background: var(--text); color: #17171a; border-color: var(--text); font-weight: 600; min-width: 68px; }
+button.primary:hover:not(:disabled) { background: #ffffff; }
+
+button.sq { width: 26px; padding: 5px 0; text-align: center; }
+
+.buttons { display: flex; gap: 6px; }
+
+/* ── 은닉층 구성 ─────────────────────────────────────────── */
+.layers { display: flex; align-items: center; gap: 6px; }
+#layers { display: flex; gap: 6px; }
+#layers:empty::after {
+  content: "없음";
+  color: var(--muted);
+  padding: 5px 4px;
+}
+
+.chip {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  background: var(--control);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.chip button { border: none; background: none; padding: 2px 5px; color: var(--muted); line-height: 1; }
+.chip button:hover:not(:disabled) { background: #3d3d47; color: var(--text); }
+.chip .count {
+  min-width: 16px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 상태 표시 ───────────────────────────────────────────── */
+.stat { display: flex; flex-direction: column; gap: 2px; }
+.stat b {
+  font-size: 17px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 그래디언트 검증 결과 ────────────────────────────────── */
+.gc {
+  margin: 10px 0 0;
+  padding: 8px 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--muted);
+  border-radius: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.gc.ok { border-left-color: var(--ok); }
+.gc.ok .verdict { color: var(--ok); font-weight: 600; }
+.gc.fail { border-left-color: var(--fail); }
+.gc.fail .verdict { color: var(--fail); font-weight: 600; }
+.gc .note { color: var(--muted); }
+
+/* ── 패널 ────────────────────────────────────────────────── */
+.panels { display: flex; gap: 16px; align-items: flex-start; margin-top: 16px; }
+.column { display: flex; flex-direction: column; gap: 16px; }
+
+.panel {
+  padding: 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.panel h2 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+
+canvas {
+  display: block;
+  background: var(--canvas); /* 캔버스만 밝게 */
+  border-radius: 4px;
+}
+
+/* ── 뷰 전환 (결정 경계 | 손실 표면) ─────────────────────── */
+.panel-head { margin-bottom: 8px; }
+
+.seg-group {
+  display: inline-flex;
+  padding: 2px;
+  background: var(--control);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+
+button.seg {
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--muted);
+  background: none;
+  border: none;
+  border-radius: 5px;
+}
+button.seg:hover:not(.is-active) { background: #34343d; color: var(--text); }
+button.seg.is-active { background: var(--text); color: #17171a; font-weight: 600; }
+
+/* ── 손실 표면 컨트롤 ────────────────────────────────────── */
+#surface-controls { width: 400px; margin-top: 10px; }
+
+.surface-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 14px;
+}
+.surface-grid select { min-width: 0; width: 100%; }
+.surface-grid input[type="range"] { width: 100%; }
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 0;
+  color: var(--text);
+  cursor: pointer;
+}
+.check input { accent-color: #c9c9d1; margin: 0; }
+
+.surface-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.muted { color: var(--muted); font-size: 11px; }
+
+.footnote {
+  margin: 10px 0 0;
+  padding-top: 9px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.footnote b { color: #c4c4ca; font-weight: 600; }
+
+#canvas-surface { cursor: grab; }
+#canvas-surface:active { cursor: grabbing; }
