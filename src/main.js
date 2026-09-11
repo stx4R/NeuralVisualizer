@@ -1,4 +1,4 @@
-// main.js — 컨트롤 바 · 학습 루프 · 세 캔버스를 묶는 앱 진입점.
+// main.js — 사이드바 컨트롤 · 학습 루프 · 네 캔버스를 묶는 앱 진입점.
 // 엔진(network/data/gradcheck)과 시각화(viz-*)는 그대로 쓰고 여기서 조립만 한다.
 
 import { Network } from './network.js';
@@ -28,10 +28,10 @@ const MAX_PITCH = 85;
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 
 const el = {
-  dataset: document.getElementById('dataset'),
+  dataset: document.getElementById('dataset'),       // 칩 버튼 묶음
   noise: document.getElementById('noise'),
   noiseValue: document.getElementById('noise-value'),
-  activation: document.getElementById('activation'),
+  activation: document.getElementById('activation'), // 세그먼트 버튼 묶음
   lr: document.getElementById('lr'),
   lrValue: document.getElementById('lr-value'),
   layers: document.getElementById('layers'),
@@ -43,9 +43,15 @@ const el = {
   reset: document.getElementById('reset'),
   gradcheck: document.getElementById('gradcheck'),
   gcResult: document.getElementById('gc-result'),
+  summary: document.getElementById('summary'),
   statEpoch: document.getElementById('stat-epoch'),
   statLoss: document.getElementById('stat-loss'),
   statAcc: document.getElementById('stat-acc'),
+  statGc: document.getElementById('stat-gc'),
+  statGcTile: document.getElementById('stat-gc-tile'),
+  lossEpoch: document.getElementById('loss-epoch'),
+  mainTitle: document.getElementById('main-title'),
+  legend: document.getElementById('legend'),
   boundary: document.getElementById('canvas-boundary'),
   network: document.getElementById('canvas-network'),
   loss: document.getElementById('canvas-loss'),
@@ -164,6 +170,12 @@ function updateStatus() {
   el.statEpoch.textContent = String(state.epoch);
   el.statLoss.textContent = Number.isFinite(last) ? last.toFixed(4) : '—';
   el.statAcc.textContent = state.lastOutput ? `${(accuracy() * 100).toFixed(1)}%` : '—';
+  el.lossEpoch.textContent = `epoch ${state.epoch}`;
+}
+
+/** 상단 바의 요약 칩 — 활성화 함수와 학습률만 짧게 보여준다. */
+function updateSummary() {
+  el.summary.textContent = `${state.activation} · lr ${state.learningRate.toFixed(2)}`;
 }
 
 // ── 학습 루프 ───────────────────────────────────────────────
@@ -235,9 +247,15 @@ function hideGradCheck() {
   el.gcResult.hidden = true;
   el.gcResult.className = 'gc';
   el.gcResult.textContent = '';
+  el.statGc.textContent = '—';
+  el.statGcTile.className = 'stat';
 }
 
+/** 상대오차는 상태 타일에, 판정과 부연 설명은 타일 아래 한 줄에 쓴다. */
 function showGradCheck(relativeError, passed, note) {
+  el.statGc.textContent = relativeError.toExponential(1);
+  el.statGcTile.className = `stat ${passed ? 'is-ok' : 'is-fail'}`;
+
   el.gcResult.hidden = false;
   el.gcResult.className = `gc ${passed ? 'ok' : 'fail'}`;
   el.gcResult.replaceChildren();
@@ -306,6 +324,8 @@ function runGradientCheck() {
   const here = kinkInfo(state.net, X, GRAD_EPSILON);
   const point = findKinkFreePoint(X, Y);
   if (!point) {
+    el.statGc.textContent = '—';
+    el.statGcTile.className = 'stat is-fail';
     el.gcResult.hidden = false;
     el.gcResult.className = 'gc fail';
     el.gcResult.textContent = 'ReLU 꺾임(z=0)에 걸리지 않는 검사 지점을 찾지 못했습니다.';
@@ -358,8 +378,8 @@ function drawSurfaceView() {
 
   if (!state.surface) {
     ctx.clearRect(0, 0, el.surface.width, el.surface.height);
-    ctx.fillStyle = '#9a9aa2';
-    ctx.font = '12px system-ui, -apple-system, "Malgun Gothic", sans-serif';
+    ctx.fillStyle = '#8b95a1';
+    ctx.font = '500 13px "Pretendard Variable", Pretendard, system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText("'표면 계산'을 누르면 지금 파라미터 주변을 훑습니다", el.surface.width / 2, el.surface.height / 2);
     return;
@@ -387,6 +407,8 @@ function setView(view) {
   el.boundary.hidden = isSurface;
   el.surface.hidden = !isSurface;
   el.surfaceControls.hidden = !isSurface;
+  el.legend.hidden = isSurface;
+  el.mainTitle.textContent = isSurface ? '손실 표면' : '결정 경계';
   el.viewBoundary.classList.toggle('is-active', !isSurface);
   el.viewSurface.classList.toggle('is-active', isSurface);
   drawHeavy();
@@ -431,21 +453,23 @@ function renderLayers() {
   el.layers.replaceChildren();
   state.hidden.forEach((count, index) => {
     const chip = document.createElement('div');
-    chip.className = 'chip';
+    chip.className = 'stepper';
 
     const dec = document.createElement('button');
     dec.type = 'button';
+    dec.className = 'stepper-btn';
     dec.textContent = '−';
     dec.title = `은닉 ${index + 1} 뉴런 줄이기`;
     dec.disabled = count <= MIN_NEURONS;
     dec.addEventListener('click', () => changeNeurons(index, -1));
 
     const value = document.createElement('span');
-    value.className = 'count';
+    value.className = 'stepper-count';
     value.textContent = String(count);
 
     const inc = document.createElement('button');
     inc.type = 'button';
+    inc.className = 'stepper-btn';
     inc.textContent = '+';
     inc.title = `은닉 ${index + 1} 뉴런 늘리기`;
     inc.disabled = count >= MAX_NEURONS;
@@ -478,8 +502,26 @@ function rebuild({ regenerate = false } = {}) {
 }
 
 // ── 이벤트 연결 ─────────────────────────────────────────────
-el.dataset.addEventListener('change', () => {
-  state.dataset = el.dataset.value;
+/** 버튼 묶음(칩·세그먼트)에서 data-value 하나만 활성으로 표시한다. */
+function selectChoice(group, value) {
+  for (const button of group.querySelectorAll('button[data-value]')) {
+    button.classList.toggle('is-active', button.dataset.value === value);
+  }
+}
+
+/** 버튼 묶음 클릭 → 값이 바뀔 때만 onChange를 부른다. */
+function bindChoice(group, onChange) {
+  group.addEventListener('click', (event) => {
+    const button = event.target.closest('button[data-value]');
+    if (!button || !group.contains(button)) return;
+    if (button.classList.contains('is-active')) return;
+    selectChoice(group, button.dataset.value);
+    onChange(button.dataset.value);
+  });
+}
+
+bindChoice(el.dataset, (value) => {
+  state.dataset = value;
   rebuild({ regenerate: true });
 });
 
@@ -489,14 +531,16 @@ el.noise.addEventListener('input', () => {
   rebuild({ regenerate: true });
 });
 
-el.activation.addEventListener('change', () => {
-  state.activation = el.activation.value;
+bindChoice(el.activation, (value) => {
+  state.activation = value;
+  updateSummary();
   rebuild();
 });
 
 el.lr.addEventListener('input', () => {
   state.learningRate = lrFromSlider(Number(el.lr.value));
   el.lrValue.textContent = state.learningRate.toFixed(2);
+  updateSummary();
 });
 
 el.layerAdd.addEventListener('click', () => {
@@ -581,13 +625,14 @@ for (const type of ['pointerup', 'pointercancel']) {
 }
 
 // ── 시작 ────────────────────────────────────────────────────
-el.dataset.value = state.dataset;
-el.activation.value = state.activation;
+selectChoice(el.dataset, state.dataset);
+selectChoice(el.activation, state.activation);
 el.noise.value = String(state.noise);
 el.noiseValue.textContent = state.noise.toFixed(2);
 el.lr.max = String(LR_STEPS);
 el.lr.value = String(sliderFromLr(state.learningRate));
 el.lrValue.textContent = state.learningRate.toFixed(2);
+updateSummary();
 
 el.span.value = String(state.surfaceOpts.span);
 el.spanValue.textContent = state.surfaceOpts.span.toFixed(1);

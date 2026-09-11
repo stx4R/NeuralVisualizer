@@ -14,15 +14,18 @@ const DISTANCE = 3.2;
 const MARGIN = 10;      // 캔버스 가장자리 여백
 const LABEL_SPACE = 34; // 좌상단 축 라벨이 차지하는 높이
 
-// 손실 팔레트 — 순차형 5스톱.
-// 결정 경계의 파랑(#3a7ae8)·주황(#e8853a)과 뜻이 겹치면 안 되므로 다른 색계열을 쓴다.
+// 손실 팔레트 — 순차형. 낮은 손실은 청록, 높은 손실은 옅은 살구색으로 밝아진다.
+// 결정 경계의 청록·주황과 같은 계열이라 "청록 = 좋은 쪽"이라는 뜻이 두 뷰에서 일치한다.
 const PALETTE = [
-  [45, 27, 82],   // #2d1b52 낮음
-  [33, 84, 138],  // #21548a
-  [26, 140, 138], // #1a8c8a
-  [124, 191, 90], // #7cbf5a
-  [242, 230, 92], // #f2e65c 높음
+  [18, 165, 184],  // #12a5b8 낮음
+  [140, 200, 195], // 중간
+  [255, 225, 200], // #ffe1c8 높음
 ];
+
+const PATH_COLOR = '#191f28';      // grey-900 — 밝은 표면 위에서 잘 보이게 어두운 선
+const WIRE_COLOR = 'rgba(255, 255, 255, 0.45)';
+const LABEL_COLOR = '#4e5968';     // grey-700
+const LABEL_FONT = '500 11px "Pretendard Variable", Pretendard, system-ui, -apple-system, "Malgun Gothic", sans-serif';
 
 const LIGHT = normalize({ x: -0.4, y: 0.75, z: -0.5 });
 
@@ -126,7 +129,9 @@ export function buildCells(surface, options = {}) {
   const { yaw = 35, pitch = 35, heightScale = 0.8, path = [] } = options;
   const { grid, aVals, bVals } = surface;
   const steps = grid.length;
-  const rotation = multiply(rotateY(yaw), rotateX(pitch)); // Rx(pitch) → Ry(yaw)
+  // Ry(yaw) → Rx(−pitch): 먼저 수직축으로 돌리고, 그다음 위에서 내려다보게 기울인다.
+  // (순서를 바꾸면 yaw 90°에서 기울기가 옆으로 눕고, 부호를 바꾸면 밑면을 올려다보게 된다)
+  const rotation = multiply(rotateX(-pitch), rotateY(yaw));
 
   // 격자점을 한 번씩만 회전·투영해 둔다
   const rotated = new Array(steps);
@@ -242,7 +247,7 @@ export function drawSurface(canvas, surface, options = {}) {
       ctx.fill();
       if (wireframe) {
         ctx.lineWidth = 0.5;
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+        ctx.strokeStyle = WIRE_COLOR;
       } else {
         // 이웃한 폴리곤 사이에 안티앨리어싱 틈이 생겨 배경이 비친다. 같은 색으로 덮어 메운다.
         ctx.lineWidth = 1;
@@ -255,7 +260,7 @@ export function drawSurface(canvas, surface, options = {}) {
     const visible = pathPoints.filter((p) => p !== null);
     if (visible.length) {
       ctx.lineWidth = 2;
-      ctx.strokeStyle = '#ffffff';
+      ctx.strokeStyle = PATH_COLOR;
       ctx.lineJoin = 'round';
       ctx.lineCap = 'round';
       ctx.beginPath();
@@ -265,17 +270,17 @@ export function drawSurface(canvas, surface, options = {}) {
       const last = visible[visible.length - 1];
       ctx.beginPath();
       ctx.arc(sx(last), sy(last), 5, 0, Math.PI * 2);
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = PATH_COLOR;
       ctx.fill();
-      ctx.lineWidth = 1;
-      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = '#ffffff';
       ctx.stroke();
     }
   }
 
   // ── 축 라벨 ──
-  ctx.fillStyle = '#33333b';
-  ctx.font = '11px system-ui, -apple-system, "Malgun Gothic", sans-serif';
+  ctx.fillStyle = LABEL_COLOR;
+  ctx.font = LABEL_FONT;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
   ctx.fillText(`가로 ${labelA}   세로 ${labelB}`, MARGIN, 15);

@@ -1,11 +1,13 @@
 // viz-loss.js — 손실 곡선.
 // x축은 epoch, y축은 손실(0부터 자동 스케일).
+// 현재 손실·epoch 숫자는 캔버스 밖(상태 타일·카드 머리)에 있으므로 여기서는 곡선과 눈금만 그린다.
 // 호출할 때마다 캔버스를 지우고 처음부터 다시 그린다.
 
-const PAD = { left: 44, right: 12, top: 16, bottom: 22 };
-const LINE = '#3a7ae8';
-const AXIS = '#c8ccd2';
-const TEXT = '#5f6368';
+const PAD = { left: 40, right: 12, top: 12, bottom: 16 };
+const LINE = '#12a5b8';   // 클래스 1과 같은 청록
+const AXIS = '#e5e8eb';   // grey-200
+const TEXT = '#6b7684';   // grey-600
+const FONT = '500 11px "Pretendard Variable", Pretendard, system-ui, -apple-system, "Malgun Gothic", sans-serif';
 const TICKS = 3; // 0, 중간, 최댓값
 
 // 축 상단으로 쓸 '깔끔한' 수의 사다리. 촘촘해야 데이터에 딱 붙는 스케일이 나온다.
@@ -61,7 +63,7 @@ export function drawLoss(canvas, history) {
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, width, height);
-  ctx.font = '11px system-ui, -apple-system, "Malgun Gothic", sans-serif';
+  ctx.font = FONT;
   ctx.textBaseline = 'middle';
 
   const finite = history.filter((v) => Number.isFinite(v));
@@ -92,7 +94,7 @@ export function drawLoss(canvas, history) {
     const points = downsample(history, Math.max(2, Math.floor(plotW)));
     const lastEpoch = Math.max(1, history.length - 1);
     ctx.strokeStyle = LINE;
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 2;
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
     ctx.beginPath();
@@ -108,17 +110,6 @@ export function drawLoss(canvas, history) {
       }
     }
     ctx.stroke();
-
-    const last = history[history.length - 1];
-    ctx.fillStyle = LINE;
-    ctx.textAlign = 'right';
-    ctx.font = '12px system-ui, -apple-system, "Malgun Gothic", sans-serif';
-    ctx.fillText(`손실 ${Number.isFinite(last) ? last.toFixed(4) : '—'}`, width - PAD.right, PAD.top - 4);
-
-    ctx.fillStyle = TEXT;
-    ctx.font = '11px system-ui, -apple-system, "Malgun Gothic", sans-serif';
-    ctx.textAlign = 'right';
-    ctx.fillText(`epoch ${history.length}`, width - PAD.right, y0 + 12);
   } else {
     ctx.fillStyle = TEXT;
     ctx.textAlign = 'center';

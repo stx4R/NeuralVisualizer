@@ -3,20 +3,21 @@
 
 const DOMAIN = 1.2;      // 좌표계 반경
 const GRID = 60;         // 히트맵 해상도 (60×60 = 3600점을 순전파 한 번으로 계산)
-const POINT_RADIUS = 4;
+const POINT_RADIUS = 4.5;
 
-const ORANGE = [232, 133, 58]; // #e8853a — 출력 0
+// 데이터 클래스 색 — UI 강조색(토스 블루)과 겹치지 않게 청록·주황을 쓴다. style.css의 --class-1/--class-0과 같은 값.
+const ORANGE = [255, 138, 61]; // #ff8a3d — 출력 0
 const WHITE = [255, 255, 255]; // 출력 0.5
-const BLUE = [58, 122, 232];   // #3a7ae8 — 출력 1
+const TEAL = [18, 165, 184];   // #12a5b8 — 출력 1
 
-const CSS_ORANGE = '#e8853a';
-const CSS_BLUE = '#3a7ae8';
+const CSS_ORANGE = '#ff8a3d';
+const CSS_TEAL = '#12a5b8';
 
-/** 출력값 0~1 → [r, g, b]. 0.5를 기준으로 주황↔흰색, 흰색↔파랑 선형 보간. */
+/** 출력값 0~1 → [r, g, b]. 0.5를 기준으로 주황↔흰색, 흰색↔청록 선형 보간. */
 function colorFor(v) {
   const t = v <= 0.5 ? v * 2 : (v - 0.5) * 2;
   const from = v <= 0.5 ? ORANGE : WHITE;
-  const to = v <= 0.5 ? WHITE : BLUE;
+  const to = v <= 0.5 ? WHITE : TEAL;
   return [
     Math.round(from[0] + (to[0] - from[0]) * t),
     Math.round(from[1] + (to[1] - from[1]) * t),
@@ -96,7 +97,7 @@ export function drawBoundary(canvas, network, data) {
       const [cx, cy] = toPixel(X[0][j], X[1][j], width, height);
       ctx.beginPath();
       ctx.arc(cx, cy, POINT_RADIUS, 0, Math.PI * 2);
-      ctx.fillStyle = Y[0][j] === 1 ? CSS_BLUE : CSS_ORANGE;
+      ctx.fillStyle = Y[0][j] === 1 ? CSS_TEAL : CSS_ORANGE;
       ctx.fill();
       ctx.stroke();
     }

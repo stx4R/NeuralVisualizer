@@ -10,15 +10,20 @@ const MAX_RADIUS = 12;
 const MIN_RADIUS = 5;
 const NEURON_GAP = 2;    // 가장 빽빽한 층에서 원 사이에 남길 최소 간격의 절반
 
-const BLUE = [58, 122, 232];   // #3a7ae8 — 양수
-const ORANGE = [232, 133, 58]; // #e8853a — 음수
+const TEAL = [18, 165, 184];   // #12a5b8 — 양수 (결정 경계의 클래스 1과 같은 색)
+const ORANGE = [255, 138, 61]; // #ff8a3d — 음수 (클래스 0)
 const SCALE = 3;               // |값| 3 이상이면 색·투명도가 최대
+
+const NEUTRAL_FILL = '#f2f4f6';            // 입력층 (grey-100)
+const NEURON_STROKE = 'rgba(0, 0, 0, 0.14)';
+const LABEL_COLOR = '#4e5968';             // grey-700
+const LABEL_FONT = '500 12px "Pretendard Variable", Pretendard, system-ui, -apple-system, "Malgun Gothic", sans-serif';
 
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 
-/** 부호에 따라 파랑/주황, 크기에 따라 흰색에서 멀어지는 색. */
+/** 부호에 따라 청록/주황, 크기에 따라 흰색에서 멀어지는 색. */
 function signedFill(value) {
-  const [r, g, b] = value >= 0 ? BLUE : ORANGE;
+  const [r, g, b] = value >= 0 ? TEAL : ORANGE;
   const t = clamp(Math.abs(value) / SCALE, 0, 1);
   return `rgb(${Math.round(255 + (r - 255) * t)}, ${Math.round(255 + (g - 255) * t)}, ${Math.round(255 + (b - 255) * t)})`;
 }
@@ -74,7 +79,7 @@ export function drawNetwork(canvas, network) {
     for (let i = 0; i < W[l].length; i++) {
       for (let j = 0; j < W[l][i].length; j++) {
         const w = W[l][i][j];
-        const [r, g, bl] = w >= 0 ? BLUE : ORANGE;
+        const [r, g, bl] = w >= 0 ? TEAL : ORANGE;
         ctx.lineWidth = clamp(Math.abs(w) * 1.5, 0.5, 6);
         ctx.strokeStyle = `rgba(${r}, ${g}, ${bl}, ${clamp(Math.abs(w) / SCALE, 0.15, 1)})`;
         ctx.beginPath();
@@ -87,12 +92,12 @@ export function drawNetwork(canvas, network) {
 
   // ── 뉴런 (채움 = 편향) ──
   ctx.lineWidth = 1;
-  ctx.strokeStyle = '#8a8f98';
+  ctx.strokeStyle = NEURON_STROKE;
   for (let l = 0; l < positions.length; l++) {
     for (let i = 0; i < positions[l].length; i++) {
       const p = positions[l][i];
       // 입력층에는 편향이 없다 — 중립색으로 둔다
-      ctx.fillStyle = l === 0 ? '#f2f3f5' : signedFill(b[l - 1][i][0]);
+      ctx.fillStyle = l === 0 ? NEUTRAL_FILL : signedFill(b[l - 1][i][0]);
       ctx.beginPath();
       ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
       ctx.fill();
@@ -100,8 +105,8 @@ export function drawNetwork(canvas, network) {
     }
   }
 
-  ctx.fillStyle = '#5f6368';
-  ctx.font = '12px system-ui, -apple-system, "Malgun Gothic", sans-serif';
+  ctx.fillStyle = LABEL_COLOR;
+  ctx.font = LABEL_FONT;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'alphabetic';
   for (let l = 0; l < layerSizes.length; l++) {
